@@ -1,5 +1,7 @@
 package study.datajpa.repository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +30,9 @@ class MemberRepositoryTest {
     @Autowired
     MemberRepository memberRepository;
     @Autowired
-    private TeamRepository teamRepository;
+    TeamRepository teamRepository;
+    @PersistenceContext
+    EntityManager em;
 
     @Test
     public void testMember() {
@@ -175,5 +179,72 @@ class MemberRepositoryTest {
         assertThat(page.getTotalPages()).isEqualTo(2); //전체 페이지 번호
         assertThat(page.isFirst()).isTrue(); //첫번째 항목인가?
         assertThat(page.hasNext()).isTrue(); //다음 페이지가 있는가?
+    }
+
+    @Test
+    public void bulkUpdate() throws Exception {
+        //given
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 19));
+        memberRepository.save(new Member("member3", 20));
+        memberRepository.save(new Member("member4", 21));
+        memberRepository.save(new Member("member5", 40));
+
+        //when
+        int resultCount = memberRepository.bulkAgePlus(20); // 영속성 컨텍스트를 무시하고 실행
+        em.clear(); // 벌크연산 다음에 api 가 끝나버리면 상관없겠지만 그게 아니라면 영속성 컨텍스트는 DB에 반영된 사실을 모르기 때문에 상태가 달라질 수 있다.
+        // 혹은 em.clear(); 대신에 레파지토리에서 @Modifying(clearAutomatically = true) 사용
+
+        //then
+        assertThat(resultCount).isEqualTo(3);
+    }
+
+    @Test
+    public void findMemberLazy() throws Exception {
+        //given
+        //member1 -> teamA
+        //member2 -> teamB
+
+        Team teamA = new Team("teamA");
+        Team teamB = new Team("teamB");
+        teamRepository.save(teamA);
+        teamRepository.save(teamB);
+        memberRepository.save(new Member("member1", 10, teamA));
+        memberRepository.save(new Member("member2", 20, teamB));
+
+        em.flush();
+        em.clear();
+
+        //when
+        List<Member> members = memberRepository.findAll();
+
+        //then
+        for (Member member : members) {
+            member.getTeam().getName();
+        }
+    }
+
+    @Test
+    public void queryHint() throws Exception {
+        //given
+        memberRepository.save(new Member("member1", 10));
+        em.flush(); // DB에 동기화.. 영속성 컨텍스트에도 여전히 남아있다. // 변경 감지
+        em.clear();
+
+        //when
+        Member member = memberRepository.findReadOnlyByUsername("member1");
+        member.setUsername("member2");
+        em.flush(); //Update Query 실행X
+        }
+
+    @Test
+    public void lock() throws Exception {
+        //given
+        memberRepository.save(new Member("member1", 10));
+        em.flush(); // DB에 동기화.. 영속성 컨텍스트에도 여전히 남아있다. // 변경 감지
+        em.clear();
+
+        //when
+        List<Member> result = memberRepository.findLockByUsername("member1");
     }
 }

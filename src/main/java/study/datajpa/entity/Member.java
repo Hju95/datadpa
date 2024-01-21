@@ -8,6 +8,7 @@ import lombok.ToString;
 @Entity
 @Getter @Setter
 @ToString(of = {"id", "username", "age"}) // Team 은 무한루프 유발할 수 있음
+//@NamedEntityGraph(name = "Member.all", attributeNodes = @NamedAttributeNode("team")) //이렇게 적어두면 레파지토리에서 @EntityGraph("Member.all") 달고 사용한다.
 public class Member {
 
     @Id
